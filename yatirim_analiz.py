@@ -6,6 +6,7 @@ import numpy as np
 import plotly.graph_objects as go
 import yfinance as yf
 from datetime import datetime
+import time
 
 # Sayfa ayarları
 st.set_page_config(
@@ -21,99 +22,124 @@ ay_cevir = {
     'Sep': 'Eylül', 'Oct': 'Ekim', 'Nov': 'Kasım', 'Dec': 'Aralık'
 }
 
-# Veri çek - cache ile hızlandır
-@st.cache_data(ttl=3600)
+# Veri çek - retry mekanizması ile
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_data(ticker, start, end):
-    try:
-        veri = get_returns_table(ticker, False, start, end)
-        veri = veri.replace('-', np.nan)
-        veri = veri.apply(pd.to_numeric, errors='coerce')
-        veri.columns = [ay_cevir.get(col, col) for col in veri.columns]
-        return veri
-    except:
-        return None
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            veri = get_returns_table(ticker, False, start, end)
+            veri = veri.replace('-', np.nan)
+            veri = veri.apply(pd.to_numeric, errors='coerce')
+            veri.columns = [ay_cevir.get(col, col) for col in veri.columns]
+            return veri
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(2)  # 2 saniye bekle
+                continue
+            else:
+                return None
+    return None
 
-# Fiyat verileri çek
-@st.cache_data(ttl=3600)
+# Fiyat verileri çek - retry mekanizması ile
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_price_data(ticker, start, end):
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(start=start, end=end, interval="1mo")
-        
-        if hist.empty:
-            return None, None
-        
-        # Para birimi
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            info = stock.info
-            currency = info.get('currency', 'USD')
-        except:
-            currency = 'USD'
+            stock = yf.Ticker(ticker)
+            hist = stock.history(start=start, end=end, interval="1mo", timeout=30)
             
-        currency_symbols = {
-            'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
-        }
-        symbol = currency_symbols.get(currency, '$')
-        
-        # Aylık fiyatları düzenle
-        hist['Yil'] = hist.index.year
-        hist['Ay'] = hist.index.month
-        
-        # Pivot tablo oluştur
-        fiyat_pivot = hist.pivot_table(
-            values='Close',
-            index='Yil',
-            columns='Ay',
-            aggfunc='mean'
-        )
-        
-        # Ay isimlerini değiştir
-        ay_sirali = {
-            1: 'Ocak', 2: 'Şubat', 3: 'Mart', 4: 'Nisan',
-            5: 'Mayıs', 6: 'Haziran', 7: 'Temmuz', 8: 'Ağustos',
-            9: 'Eylül', 10: 'Ekim', 11: 'Kasım', 12: 'Aralık'
-        }
-        fiyat_pivot.columns = [ay_sirali.get(col, col) for col in fiyat_pivot.columns]
-        
-        return fiyat_pivot, symbol
-    except:
-        return None, None
+            if hist.empty:
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                    continue
+                return None, None
+            
+            # Para birimi
+            try:
+                info = stock.info
+                currency = info.get('currency', 'USD')
+            except:
+                currency = 'USD'
+                
+            currency_symbols = {
+                'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
+            }
+            symbol = currency_symbols.get(currency, '$')
+            
+            # Aylık fiyatları düzenle
+            hist['Yil'] = hist.index.year
+            hist['Ay'] = hist.index.month
+            
+            # Pivot tablo oluştur
+            fiyat_pivot = hist.pivot_table(
+                values='Close',
+                index='Yil',
+                columns='Ay',
+                aggfunc='mean'
+            )
+            
+            # Ay isimlerini değiştir
+            ay_sirali = {
+                1: 'Ocak', 2: 'Şubat', 3: 'Mart', 4: 'Nisan',
+                5: 'Mayıs', 6: 'Haziran', 7: 'Temmuz', 8: 'Ağustos',
+                9: 'Eylül', 10: 'Ekim', 11: 'Kasım', 12: 'Aralık'
+            }
+            fiyat_pivot.columns = [ay_sirali.get(col, col) for col in fiyat_pivot.columns]
+            
+            return fiyat_pivot, symbol
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            else:
+                return None, None
+    return None, None
 
-# Güncel fiyat bilgisi - cache'siz
+# Güncel fiyat bilgisi - retry mekanizması ile
 def get_current_price(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        
-        # Son fiyatı al
-        hist = stock.history(period="5d")
-        if hist.empty:
-            return None, None, None
-        
-        current_price = hist['Close'].iloc[-1]
-        
-        # Döviz sembolü belirle
+    max_retries = 2
+    for attempt in range(max_retries):
         try:
-            info = stock.info
-            currency = info.get('currency', 'USD')
+            stock = yf.Ticker(ticker)
+            
+            # Son fiyatı al
+            hist = stock.history(period="5d", timeout=20)
+            if hist.empty:
+                if attempt < max_retries - 1:
+                    time.sleep(1)
+                    continue
+                return None, None, None
+            
+            current_price = hist['Close'].iloc[-1]
+            
+            # Döviz sembolü belirle
+            try:
+                info = stock.info
+                currency = info.get('currency', 'USD')
+            except:
+                currency = 'USD'
+            
+            # Para birimi sembolü
+            currency_symbols = {
+                'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
+            }
+            symbol = currency_symbols.get(currency, '$')
+            
+            # Değişim hesapla
+            if len(hist) >= 2:
+                prev_price = hist['Close'].iloc[-2]
+                change = ((current_price - prev_price) / prev_price) * 100
+            else:
+                change = 0
+            
+            return current_price, symbol, change
         except:
-            currency = 'USD'
-        
-        # Para birimi sembolü
-        currency_symbols = {
-            'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
-        }
-        symbol = currency_symbols.get(currency, '$')
-        
-        # Değişim hesapla
-        if len(hist) >= 2:
-            prev_price = hist['Close'].iloc[-2]
-            change = ((current_price - prev_price) / prev_price) * 100
-        else:
-            change = 0
-        
-        return current_price, symbol, change
-    except:
-        return None, None, None
+            if attempt < max_retries - 1:
+                time.sleep(1)
+                continue
+    return None, None, None
 
 def main():
     st.title("💰 Yatırım Ne Zaman Yapılmalı?")
@@ -163,7 +189,9 @@ def main():
         baslangic_str = f"{baslangic-1}-12-01"
         bitis_str = f"{bitis}-12-31"
         
-        with st.spinner(f"📊 {ticker} verileri çekiliyor..."):
+        # Progress bar ile veri çekme
+        progress_text = f"📊 {ticker} verileri çekiliyor... (Bu biraz zaman alabilir)"
+        with st.spinner(progress_text):
             veri = get_data(ticker, baslangic_str, bitis_str)
             fiyat_pivot, currency_symbol = get_price_data(ticker, baslangic_str, bitis_str)
         
@@ -176,7 +204,8 @@ def main():
             st.success(f"✅ {ticker} için {len(veri)} yıllık veri yüklendi ({baslangic}-{bitis})")
             
             # Güncel fiyat bilgisi
-            current_price, curr_symbol, price_change = get_current_price(ticker)
+            with st.spinner("Güncel fiyat alınıyor..."):
+                current_price, curr_symbol, price_change = get_current_price(ticker)
             
             if current_price is not None and curr_symbol is not None:
                 col1, col2 = st.columns([2, 1])
@@ -248,7 +277,7 @@ def main():
                     z=veri.values,
                     x=veri.columns,
                     y=veri.index,
-                    colorscale=[[0, '#ff4444'], [0.5, '#ffffff'], [1, '#44ff44']],  # Kırmızı -> Beyaz -> Yeşil
+                    colorscale=[[0, '#ff4444'], [0.5, '#ffffff'], [1, '#44ff44']],
                     zmid=0,
                     text=text_labels,
                     texttemplate='%{text}',
@@ -256,7 +285,6 @@ def main():
                 ))
             else:
                 # Sadece yüzde
-                # Text etiketleri oluştur (+ işareti ile)
                 text_labels = []
                 for i in range(len(veri)):
                     row_labels = []
@@ -273,7 +301,7 @@ def main():
                     z=veri.values,
                     x=veri.columns,
                     y=veri.index,
-                    colorscale=[[0, '#ff4444'], [0.5, '#ffffff'], [1, '#44ff44']],  # Kırmızı -> Beyaz -> Yeşil
+                    colorscale=[[0, '#ff4444'], [0.5, '#ffffff'], [1, '#44ff44']],
                     zmid=0,
                     text=text_labels,
                     texttemplate='%{text}',
@@ -330,7 +358,7 @@ def main():
             
             st.divider()
             
-            # Başarı tablosu - Düşüş sütunu eklendi
+            # Başarı tablosu
             st.subheader("📋 Detaylı İstatistik")
             st.caption("Her ay kaç kere yükselmiş/düşmüş?")
             
@@ -358,12 +386,20 @@ def main():
             st.warning("⚠️ **Önemli:** Geçmiş performans gelecek garantisi değildir. Sadece referans amaçlıdır.")
         
         else:
-            st.error(f"❌ '{ticker}' için veri çekilemedi! Ticker sembolünü kontrol edin.")
+            st.error(f"❌ '{ticker}' için veri çekilemedi!")
             st.info("""
-            **Ticker bulunamadı mı?**
-            - Yahoo Finance'de ticker'ı arayın: https://finance.yahoo.com
+            **Veri çekilemedi mi?**
+            
+            Olası nedenler:
+            - Ticker sembolü yanlış olabilir
+            - Yahoo Finance'de bu ticker için veri olmayabilir
+            - Bağlantı zaman aşımına uğradı (tekrar deneyin)
+            
+            **Ne yapmalısınız?**
+            - Yahoo Finance'de ticker'ı kontrol edin: https://finance.yahoo.com
             - Doğru formatı kullanın (Örn: AAPL, BTC-USD, ^GSPC)
             - Türk hisseleri için .IS ekleyin (Örn: GARAN.IS)
+            - Birkaç saniye bekleyip tekrar deneyin
             """)
     
     else:
