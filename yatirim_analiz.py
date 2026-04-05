@@ -360,6 +360,12 @@ def main():
         2. **Tarih aralığını** seçin
         3. **Analiz Et** butonuna tıklayın
         
+        ### 💡 Ticker Nasıl Bulunur?
+        
+        1. **Yahoo Finance**'e gidin: https://finance.yahoo.com
+        2. Aramak istediğiniz şirketi/varlığı arayın
+        3. Ticker sembolünü kopyalayın
+                    
         ### 📊 Ne Öğreneceksiniz?
         
         - **Güncel fiyat** ve değişim
@@ -367,12 +373,6 @@ def main():
         - Hangi aylarda genelde yükseliş/düşüş oluyor
         - En iyi alım/satım zamanları
         - Geçmiş performans istatistikleri
-        
-        ### 💡 Ticker Nasıl Bulunur?
-        
-        1. **Yahoo Finance**'e gidin: https://finance.yahoo.com
-        2. Aramak istediğiniz şirketi/varlığı arayın
-        3. Ticker sembolünü kopyalayın
         
         **Basit mantık:** Düşükten al, yüksekten sat 📈
         """)
