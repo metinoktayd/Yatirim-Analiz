@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import yfinance as yf
+from datetime import datetime
 
 # Sayfa ayarları
 st.set_page_config(
@@ -131,7 +132,7 @@ def main():
         st.subheader("📅 Tarih Aralığı")
         col1, col2 = st.columns(2)
         baslangic = col1.number_input("Başlangıç", 2010, 2026, 2019)
-        bitis = col2.number_input("Bitiş", 2010, 2026, 2026)
+        bitis = col2.number_input("Bitiş", 2010, 2027, 2027)
         
         st.divider()
         
@@ -152,12 +153,21 @@ def main():
             st.error("❌ Lütfen bir ticker girin!")
             return
         
+        # Tarihleri bir yıl önceden başlat (ocak ayını dahil etmek için)
+        baslangic_str = f"{baslangic-1}-12-01"
+        bitis_str = f"{bitis}-12-31"
+        
         with st.spinner(f"📊 {ticker} verileri çekiliyor..."):
-            veri = get_data(ticker, f"{baslangic}-01-01", f"{bitis}-12-31")
-            fiyat_pivot, currency_symbol = get_price_data(ticker, f"{baslangic}-01-01", f"{bitis}-12-31")
+            veri = get_data(ticker, baslangic_str, bitis_str)
+            fiyat_pivot, currency_symbol = get_price_data(ticker, baslangic_str, bitis_str)
         
         if veri is not None and not veri.empty:
-            st.success(f"✅ {ticker} için {len(veri)} yıllık veri yüklendi")
+            # Sadece seçilen yılları göster
+            veri = veri[veri.index >= baslangic]
+            if fiyat_pivot is not None:
+                fiyat_pivot = fiyat_pivot[fiyat_pivot.index >= baslangic]
+            
+            st.success(f"✅ {ticker} için {len(veri)} yıllık veri yüklendi ({baslangic}-{bitis})")
             
             # Güncel fiyat bilgisi
             current_price, curr_symbol, price_change = get_current_price(ticker)
@@ -170,7 +180,7 @@ def main():
                     if price_change >= 0:
                         st.success(f"📈 Dünden beri: +{price_change:.2f}%")
                     else:
-                        st.error(f"📉 Dünden beri: -{price_change:.2f}%")
+                        st.error(f"📉 Dünden beri: {price_change:.2f}%")
             
             st.divider()
             
