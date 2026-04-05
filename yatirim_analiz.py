@@ -44,12 +44,16 @@ def get_price_data(ticker, start, end):
             return None, None
         
         # Para birimi
-        info = stock.info
-        currency = info.get('currency', 'USD')
+        try:
+            info = stock.info
+            currency = info.get('currency', 'USD')
+        except:
+            currency = 'USD'
+            
         currency_symbols = {
             'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
         }
-        symbol = currency_symbols.get(currency, currency)
+        symbol = currency_symbols.get(currency, '$')
         
         # Aylık fiyatları düzenle
         hist['Yil'] = hist.index.year
@@ -75,8 +79,7 @@ def get_price_data(ticker, start, end):
     except:
         return None, None
 
-# Güncel fiyat bilgisi
-@st.cache_data(ttl=300)  # 5 dakika cache
+# Güncel fiyat bilgisi - cache'siz
 def get_current_price(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -89,14 +92,17 @@ def get_current_price(ticker):
         current_price = hist['Close'].iloc[-1]
         
         # Döviz sembolü belirle
-        info = stock.info
-        currency = info.get('currency', 'USD')
+        try:
+            info = stock.info
+            currency = info.get('currency', 'USD')
+        except:
+            currency = 'USD'
         
         # Para birimi sembolü
         currency_symbols = {
             'USD': '$', 'TRY': '₺', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
         }
-        symbol = currency_symbols.get(currency, currency)
+        symbol = currency_symbols.get(currency, '$')
         
         # Değişim hesapla
         if len(hist) >= 2:
@@ -172,7 +178,7 @@ def main():
             # Güncel fiyat bilgisi
             current_price, curr_symbol, price_change = get_current_price(ticker)
             
-            if current_price and curr_symbol:
+            if current_price is not None and curr_symbol is not None:
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     st.info(f"📍 **Şu Anki Fiyat:** {curr_symbol}{current_price:,.2f}")
@@ -277,6 +283,9 @@ def main():
             fig.update_layout(height=400, margin=dict(l=0, r=0, t=20, b=0))
             st.plotly_chart(fig, use_container_width=True)
             
+            if currency_symbol:
+                st.caption(f"Her hücrede: Yüzde değişim ve ortalama fiyat ({currency_symbol})")
+            
             st.divider()
             
             # Bar chart
@@ -295,6 +304,8 @@ def main():
             
             fig2.update_layout(height=300, showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig2, use_container_width=True)
+            
+            st.info("**Nasıl Okuyorum?** Yukarı çıkan yeşil barlar = o ayda genelde yükseliş var. Aşağı inen kırmızı barlar = düşüş var.")
             
             st.divider()
             
