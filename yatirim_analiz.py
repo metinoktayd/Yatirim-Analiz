@@ -168,9 +168,9 @@ def main():
                     st.info(f"📍 **Şu Anki Fiyat:** {curr_symbol}{current_price:,.2f}")
                 with col2:
                     if price_change >= 0:
-                        st.success(f"📈 +{price_change:.2f}%")
+                        st.success(f"📈 Dünden beri: +{price_change:.2f}%")
                     else:
-                        st.error(f"📉 {price_change:.2f}%")
+                        st.error(f"📉 Dünden beri: -{price_change:.2f}%")
             
             st.divider()
             
