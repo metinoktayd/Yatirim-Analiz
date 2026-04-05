@@ -132,7 +132,7 @@ def main():
         st.subheader("📅 Tarih Aralığı")
         col1, col2 = st.columns(2)
         baslangic = col1.number_input("Başlangıç", 2010, 2026, 2019)
-        bitis = col2.number_input("Bitiş", 2010, 2027, 2027)
+        bitis = col2.number_input("Bitiş", 2010, 2026, 2026)
         
         st.divider()
         
@@ -172,7 +172,7 @@ def main():
             # Güncel fiyat bilgisi
             current_price, curr_symbol, price_change = get_current_price(ticker)
             
-            if current_price:
+            if current_price and curr_symbol:
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     st.info(f"📍 **Şu Anki Fiyat:** {curr_symbol}{current_price:,.2f}")
@@ -277,9 +277,6 @@ def main():
             fig.update_layout(height=400, margin=dict(l=0, r=0, t=20, b=0))
             st.plotly_chart(fig, use_container_width=True)
             
-            if currency_symbol:
-                st.caption(f"Her hücrede: Yüzde değişim ve ortalama fiyat ({currency_symbol})")
-            
             st.divider()
             
             # Bar chart
@@ -298,8 +295,6 @@ def main():
             
             fig2.update_layout(height=300, showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig2, use_container_width=True)
-            
-            st.info("**Nasıl Okuyorum?** Yukarı çıkan yeşil barlar = o ayda genelde yükseliş var. Aşağı inen kırmızı barlar = düşüş var.")
             
             st.divider()
             
